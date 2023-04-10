@@ -13,6 +13,7 @@ from logger_config import logger
 entityDict = EntityDict(args.entity_path)
 totalGraph = TotalGraph(args.train_path)
 related_triples = totalGraph.get_related_triples()
+tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model)
 
 class Triplet(object):
     def __init__(self, head_id, relation, tail_id):
@@ -24,7 +25,7 @@ class Triplet(object):
         self.head = entityDict.id2entity[self.head_id].entity
         self.tail = entityDict.id2entity[self.tail_id].entity
 
-        self.tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model)
+        self.tokenizer = tokenizer
 
     def split_word(self, words: str):
         if args.task == 'WN18RR':
@@ -89,3 +90,49 @@ class Dataset(torch.utils.data.dataset.Dataset):
     
     def __getitem__(self, index) :
         return self.data[index].handle()
+
+
+def collate(batch_data: List[dict]):
+    pad_token = tokenizer.pad_token_id
+    hr_input_ids, hr_mask = pad_and_mask([x['hr_input_ids'] for x in batch_data], pad_token=pad_token)
+    hr_token_type_ids = pad_and_mask([x['hr_token_type_ids'] for x in batch_data], pad_token=pad_token, need_mask=False)
+    tail_input_ids, tail_mask = pad_and_mask([x['tail_input_ids'] for x in batch_data], pad_token=pad_token)
+    tail_token_type_ids = pad_and_mask([x['tail_token_type_ids'] for x in batch_data], pad_token=pad_token, need_mask=False)
+    triples_input_ids, triples_mask = pad_and_mask([x['triples_input_ids'] for x in batch_data], pad_token=pad_token)
+    triples_token_type_ids = pad_and_mask([x['triples_token_type_ids'] for x in batch_data], pad_token=pad_token, need_mask=False)
+    
+    new_batch_data = {
+        'hr_input_ids' : hr_input_ids,
+        'hr_mask' : hr_mask,
+        'hr_token_type_ids' : hr_token_type_ids,
+        'tail_input_ids' : tail_input_ids,
+        'tail_mask' : tail_mask,
+        'tail_token_type_ids' : tail_token_type_ids,
+        'triples_input_ids' : triples_input_ids,
+        'triples_mask' : triples_mask,
+        'triples_token_type_ids' : triples_token_type_ids,
+        'batch_samples' : [x['obj'] for x in batch_data],
+    }
+    return new_batch_data
+    
+
+def pad_and_mask(data, pad_token, need_mask=True):
+    mx_length = max([x.shape[1] for x in data])
+    batch_size = len(data)
+    tokens = torch.LongTensor(batch_size, mx_length).fill_(pad_token)
+    if need_mask:
+        mask = torch.zeros(*(batch_size, mx_length))
+    for i, item in enumerate(data):
+        item = item[0]
+        tokens[i, : len(item)].copy_(item)
+        if need_mask:
+            mask[i, : len(item)].fill_(1)
+    if need_mask:
+        return tokens, mask
+    else:
+        return tokens
+
+if __name__ == "__main__":
+    print(1)
+
+

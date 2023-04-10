@@ -1,10 +1,10 @@
 import torch
 import numpy as np
 import json
-from logger_config import logger
 from tqdm import tqdm
 from collections import deque
 from dataclasses import dataclass
+from logger_config import logger
 
 @dataclass
 class EntityItem:

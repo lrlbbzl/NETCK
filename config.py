@@ -13,4 +13,8 @@ parser.add_argument('--entity-path', default='./data/WN18RR/entities.json', help
 parser.add_argument('--max-tokens', default=100, help='max tokens num in encoding')
 parser.add_argument('--max-triples', default=5, help='max sampled related triples to central entity')
 
+# hyperparameter in training phase
+parser.add_argument('--batch-size', default=512, help='batch size in training')
+parser.add_argument('--tau', default=20, help='temperature coefficient in contrastive learning')
+
 args = parser.parse_args()
