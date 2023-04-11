@@ -17,8 +17,10 @@ class NETCK(nn.Module):
         self.hr_bert = AutoModel.from_pretrained(args.pretrained_model)
         self.triple_bert = AutoModel.from_pretrained(args.pretrained_model)
         self.tail_bert = AutoModel.from_pretrained(args.pretrained_model)
-        self.alpha = nn.Parameter(torch.tensor(1.0 / args.tau, requires_grad=True))
+        self.alpha = nn.Parameter(torch.tensor((1.0 / args.tau).log()), requires_grad=True)
         self.loss_func = nn.BCEWithLogitsLoss()
+        self.W = nn.Parameter(torch.zeros(args.hidden_size, args.hidden_size))
+        nn.init.xavier_uniform_(self.W.data, gain=1.414)
 
     def hr_encode(self, input_ids, mask, token_type_ids):
         outputs = self.hr_bert(input_ids=input_ids,
@@ -63,3 +65,33 @@ class NETCK(nn.Module):
         mask = mask.unsqueeze(-1).expand(bs, length, last_hidden_state.shape[-1])
         triples_embedding = (mask * last_hidden_state).sum(dim=1) / token_num
         return triples_embedding
+    
+    def forward(self, hr_input_ids, hr_mask, hr_token_type_ids, 
+                tail_input_ids, tail_mask, tail_token_type_ids,
+                triples_input_ids, triples_mask, triples_token_type_ids,
+                **kwargs):
+        bs = hr_input_ids.size(0)
+        h, r = self.hr_encode(hr_input_ids, hr_mask, hr_token_type_ids)
+        related_triples = self.triples_encode(triples_input_ids, triples_mask, triples_token_type_ids)
+        t = self.tail_encode(tail_input_ids, tail_mask, tail_token_type_ids)
+        label = torch.arange(bs).to(h.device)
+        embed_dict = {
+            'head' : h,
+            'relation' : r,
+            'related_triples' : related_triples,
+            'tail' : t,
+            'label' : label,
+        }
+        return embed_dict
+
+    def compute_logits(self, embed_dict, mode='train'):
+        head, relation, tail = embed_dict['head'], embed_dict['relation'], embed_dict['tail']
+        related_triples = embed_dict['related_triples']
+        fixed_head = torch.mm(related_triples, self.W) + head
+        hr = fixed_head * relation
+        bs = head.size(0)
+        logits = hr.mm(tail.t())
+        if mode == 'train':
+            logits -= torch.zeros_like(logits).fill_diagonal_(self.args.margin)
+        logits *= self.alpha.exp()
+        return logits
