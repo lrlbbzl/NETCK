@@ -32,4 +32,8 @@ parser.add_argument('--grad-clip', default=10.0, type=float, help='clip size for
 parser.add_argument('--print-freq', default=20, type=int, help='metric print frequency during training')
 parser.add_argument('--eval-freq', default=5, type=int, help='evaluate frequency during training')
 
+# test setting
+parser.add_argument('--model-path', default='checkpoints/epoch_5.mdl', help='path of model used to evaluate on test dataset')
+parser.add_argument('--test-path', default='./data/WN18RR/test.txt.json', help='path of test dataset')
+
 args = parser.parse_args()

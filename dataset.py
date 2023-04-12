@@ -16,14 +16,14 @@ related_triples = totalGraph.get_related_triples()
 tokenizer = AutoTokenizer.from_pretrained(args.pretrained_model)
 
 class Triplet(object):
-    def __init__(self, head_id, relation, tail_id):
+    def __init__(self, head_id=None, relation=None, tail_id=None):
         self.head_id = head_id
         self.relation = relation
         self.tail_id = tail_id
-        self.head_desc = entityDict.id2entity[self.head_id].entity_desc
-        self.tail_desc = entityDict.id2entity[self.tail_id].entity_desc
-        self.head = entityDict.id2entity[self.head_id].entity
-        self.tail = entityDict.id2entity[self.tail_id].entity
+        self.head_desc = entityDict.id2entity[self.head_id].entity_desc if head_id else ''
+        self.tail_desc = entityDict.id2entity[self.tail_id].entity_desc if tail_id else ''
+        self.head = entityDict.id2entity[self.head_id].entity if head_id else ''
+        self.tail = entityDict.id2entity[self.tail_id].entity if tail_id else ''
 
         self.tokenizer = tokenizer
 
@@ -69,18 +69,22 @@ class Triplet(object):
         return return_dict
 
 class Dataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, path_list):
+    def __init__(self, path_list, data=None):
         self.path_list = path_list
-        self.data = []
-        for path in path_list:
-            self.data.extend(self.load_data(path))
+        if data != None:
+            self.data = data
+        else:
+            self.data = []
+            for path in path_list:
+                self.data.extend(self.load_data(path, add_forward=True, add_reciprocal=True))
 
-    def load_data(self, path: str, add_reciprocal: bool = True):
+    def load_data(self, path: str, add_forward: bool = True, add_reciprocal: bool = True):
         data = json.load(open(path, 'r', encoding='utf-8'))
         logger.info('Load {} triples from {}.'.format(len(data), path))
         samples = []
         for i, sample in enumerate(data):
-            samples.append(Triplet(sample['head_id'], sample['relation'], sample['tail_id']))
+            if add_forward:
+                samples.append(Triplet(sample['head_id'], sample['relation'], sample['tail_id']))
             if add_reciprocal:
                 samples.append(Triplet(sample['tail_id'], 'reverse ' + sample['relation'], sample['tail_id']))
         return samples
