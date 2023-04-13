@@ -49,18 +49,18 @@ class Triplet(object):
         tail_encoded_input = self.tokenize(tail_desc) 
 
         # related triples 
-        triple_tuples = related_triples[self.head_id]
+        triple_tuples = related_triples.get(self.head_id, [])
         random.shuffle(triple_tuples)
         triple_tuples = triple_tuples[:args.max_triples]
         
         triples_desc = [self.split_word(entityDict.id2entity[x[0]].entity) + ' ' + x[1] + ' [MASK].' for x in triple_tuples]
         triples_desc = ' [SEP] '.join(triples_desc)
-        triples_encoded_input = self.tokenize(triples_encoded_input)
+        triples_encoded_input = self.tokenize(triples_desc)
 
         return_dict = {
             'hr_input_ids': hr_encoded_input['input_ids'],
             'hr_token_type_ids': hr_encoded_input['token_type_ids'],
-            'tail_input_ids': tail_encoded_input['tail_ids'],
+            'tail_input_ids': tail_encoded_input['input_ids'],
             'tail_token_type_ids': tail_encoded_input['token_type_ids'],
             'triples_input_ids': triples_encoded_input['input_ids'],
             'triples_token_type_ids': triples_encoded_input['token_type_ids'],
@@ -79,6 +79,7 @@ class Dataset(torch.utils.data.dataset.Dataset):
                 self.data.extend(self.load_data(path, add_forward=True, add_reciprocal=True))
 
     def load_data(self, path: str, add_forward: bool = True, add_reciprocal: bool = True):
+        logger.info('Open: {}.'.format(path))
         data = json.load(open(path, 'r', encoding='utf-8'))
         logger.info('Load {} triples from {}.'.format(len(data), path))
         samples = []
@@ -125,7 +126,7 @@ def pad_and_mask(data, pad_token, need_mask=True):
     batch_size = len(data)
     tokens = torch.LongTensor(batch_size, mx_length).fill_(pad_token)
     if need_mask:
-        mask = torch.zeros(*(batch_size, mx_length))
+        mask = torch.zeros(*(batch_size, mx_length), dtype=torch.int64)
     for i, item in enumerate(data):
         item = item[0]
         tokens[i, : len(item)].copy_(item)

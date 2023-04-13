@@ -1,11 +1,12 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
-
+import warnings 
+warnings.filterwarnings("ignore")
 from logger_config import logger
 from model import NETCK
 from dataset import Dataset, collate
-from utils import AverageMeter, ProgressMeter, accuracy
+from utils import AverageMeter, ProgressMeter, accuracy, move_to_cuda
 
 import shutil
 import json
@@ -17,15 +18,16 @@ from transformers import get_linear_schedule_with_warmup, get_cosine_schedule_wi
 class Trainer():
     def __init__(self, args):
         self.args = args
-        logger.info('Creating Model')
+        logger.info('Creating Model.')
         self.model = NETCK(args)
         self.best_metric = 0.0
-        logger.info(self.model)
+        # logger.info(self.model)
         # cuda setting
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if torch.cuda.device_count() > 1:
             self.model = torch.nn.DataParallel(self.model).cuda()
         elif torch.cuda.is_available():
+            logger.info('Use cuda.')
             self.model.cuda()
         else:
             logger.info('No available gpus, run on cpu.')
@@ -34,8 +36,8 @@ class Trainer():
         self.criterion = nn.CrossEntropyLoss().cuda()
 
         # data
-        self.train_data = Dataset(self.args.train_path)
-        self.valid_data = Dataset(self.args.valid_path)
+        self.train_data = Dataset([self.args.train_path])
+        self.valid_data = Dataset([self.args.valid_path])
         self.train_dataloader = DataLoader(
             self.train_data,
             batch_size=self.args.batch_size,
@@ -85,17 +87,17 @@ class Trainer():
             prefix="Epoch: [{}]".format(epoch))
         
         # training
-        self.model.train()
         for i, batch_data in enumerate(self.train_dataloader):
+            self.model.train()
             if self.device == 'cuda':
-                batch_data = batch_data.cuda()
-            bs = len(batch_data)
+                batch_data = move_to_cuda(batch_data)
             if self.args.use_amp:
                 with torch.cuda.amp.autocast():
                     outputs = self.model(**batch_data)
             else:
                 outputs = self.model(**batch_data)
             logits = self.model.compute_logits(outputs, mode='train')
+            bs = logits.size(0)
             labels = outputs['label']
             loss = self.criterion(logits, labels)
             loss += self.criterion(logits[:bs].t(), labels)
@@ -140,7 +142,7 @@ class Trainer():
         self.model.eval()
         for i, batch_data in enumerate(self.valid_dataloader):
             if self.device == 'cuda':
-                batch_data = batch_data.cuda()
+                batch_data = move_to_cuda(batch_data)
             bs = len(batch_data)
             outputs = self.model(**batch_data)
             logits = self.model.compute_logits(outputs, mode='valid')

@@ -15,7 +15,7 @@ class EntityItem:
 class EntityDict(object):
     def __init__(self, entity_path: str):
         entity = json.load(open(entity_path, 'r', encoding='utf-8'))
-        self.entities = [EntityItem(*x) for x in entity]
+        self.entities = [EntityItem(**x) for x in entity]
         self.id2idx = {x.entity_id : i for i, x in enumerate(self.entities)}
         self.id2entity = {x.entity_id : x for x in self.entities}
         logger.info('Load {} entities from {}'.format(len(self.entities), entity_path))
@@ -67,7 +67,7 @@ class TotalGraph(object):
             if tail_id not in related_triples:
                 related_triples.update({tail_id : []})
             related_triples[tail_id].append((head_id, relation))
-        logger.info('Generation done.')
+        logger.info('Generation done. {} entities have related triples.'.format(len(related_triples)))
         return related_triples
 
 if __name__ == '__main__':

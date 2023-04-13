@@ -11,13 +11,15 @@ from logger_config import logger
 
 class NETCK(nn.Module):
     def __init__(self, args, ):
+        super(NETCK, self).__init__()
+        self.args = args
         self.config = AutoConfig.from_pretrained(args.pretrained_model)
         self.batch_size = args.batch_size
         self.tokenzier = AutoTokenizer.from_pretrained(args.pretrained_model)
         self.hr_bert = AutoModel.from_pretrained(args.pretrained_model)
         self.triple_bert = AutoModel.from_pretrained(args.pretrained_model)
         self.tail_bert = AutoModel.from_pretrained(args.pretrained_model)
-        self.alpha = nn.Parameter(torch.tensor((1.0 / args.tau).log()), requires_grad=True)
+        self.alpha = nn.Parameter(torch.tensor((1.0 / args.tau)).log(), requires_grad=True)
         self.loss_func = nn.BCEWithLogitsLoss()
         self.W = nn.Parameter(torch.zeros(args.hidden_size, args.hidden_size))
         nn.init.xavier_uniform_(self.W.data, gain=1.414)
@@ -89,7 +91,6 @@ class NETCK(nn.Module):
         related_triples = embed_dict['related_triples']
         fixed_head = torch.mm(related_triples, self.W) + head
         hr = fixed_head * relation
-        bs = head.size(0)
         logits = hr.mm(tail.t())
         if mode == 'train':
             logits -= torch.zeros_like(logits).fill_diagonal_(self.args.margin)
